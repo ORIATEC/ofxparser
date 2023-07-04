@@ -1,50 +1,45 @@
 <?php
 
-namespace OfxParserTest;
+namespace OfxParser;
 
+use Exception;
 use PHPUnit\Framework\TestCase;
-use OfxParser\Ofx;
+use SimpleXMLElement;
 
-/**
- * @covers OfxParser\Ofx
- */
 class OfxTest extends TestCase
 {
-    /**
-     * @var \SimpleXMLElement
-     */
-    protected $ofxData;
+    protected SimpleXMLElement $ofxData;
+    private Ofx $ofsContent;
 
+    /**
+     * @throws Exception
+     */
     public function setUp(): void
     {
-        $ofxFile = dirname(__DIR__).'/fixtures/ofxdata-xml.ofx';
-
-        if (!file_exists($ofxFile)) {
-            self::markTestSkipped('Could not find data file, cannot test Ofx Class');
-        }
+        $ofxFile = dirname(__DIR__) . '/fixtures/ofxdata-xml.ofx';
         $this->ofxData = simplexml_load_string(file_get_contents($ofxFile));
+        $this->ofsContent = new Ofx($this->ofxData);
     }
 
-    public function testBuildsSignOn()
+    public function testBuildsSignOn(): void
     {
-        $ofx = new Ofx($this->ofxData);
-        self::assertEquals('', $ofx->signOn->status->message);
-        self::assertEquals('0', $ofx->signOn->status->code);
-        self::assertEquals('INFO', $ofx->signOn->status->severity);
-        self::assertEquals('Success', $ofx->signOn->status->codeDesc);
+        self::assertEquals('', $this->ofsContent->signOn->status->message);
+        self::assertEquals('0', $this->ofsContent->signOn->status->code);
+        self::assertEquals('INFO', $this->ofsContent->signOn->status->severity);
+        self::assertEquals('Success', $this->ofsContent->signOn->status->codeDesc);
 
-        self::assertInstanceOf('DateTime', $ofx->signOn->date);
-        self::assertEquals('ENG', $ofx->signOn->language);
-        self::assertEquals('MYBANK', $ofx->signOn->institute->name);
-        self::assertEquals('01234', $ofx->signOn->institute->id);
+        self::assertInstanceOf('DateTime', $this->ofsContent->signOn->date);
+        self::assertEquals('ENG', $this->ofsContent->signOn->language);
+        self::assertEquals('MYBANK', $this->ofsContent->signOn->institute->name);
+        self::assertEquals('01234', $this->ofsContent->signOn->institute->id);
     }
 
-    public function testBuildsMultipleBankAccounts()
+    /**
+     * @throws Exception
+     */
+    public function testBuildsMultipleBankAccounts(): void
     {
-        $multiOfxFile = dirname(__DIR__).'/fixtures/ofx-multiple-accounts-xml.ofx';
-        if (!file_exists($multiOfxFile)) {
-            self::markTestSkipped('Could not find multiple account data file, cannot fully test Multiple Bank Accounts');
-        }
+        $multiOfxFile = dirname(__DIR__) . '/fixtures/ofx-multiple-accounts-xml.ofx';
         $multiOfxData = simplexml_load_string(file_get_contents($multiOfxFile));
         $ofx = new Ofx($multiOfxData);
 
@@ -52,58 +47,42 @@ class OfxTest extends TestCase
         self::assertEmpty($ofx->bankAccount);
     }
 
-    public function testBuildsBankAccount()
+    public function testICanCheckDetailsOfTransactions(): void
     {
-        $Ofx = new Ofx($this->ofxData);
-
-        $bankAccount = $Ofx->bankAccount;
-        self::assertEquals('23382938', $bankAccount->transactionUid);
-        self::assertEquals('098-121', $bankAccount->accountNumber);
-        self::assertEquals('987654321', $bankAccount->routingNumber);
-        self::assertEquals('SAVINGS', $bankAccount->accountType);
-        self::assertEquals('5250.00', $bankAccount->balance);
-        self::assertInstanceOf('DateTime', $bankAccount->balanceDate);
-
-        $statement = $bankAccount->statement;
-        self::assertEquals('USD', $statement->currency);
-        self::assertInstanceOf('DateTime', $statement->startDate);
-        self::assertInstanceOf('DateTime', $statement->endDate);
-
-        $transactions = $statement->transactions;
+        $transactions = $this->ofsContent->getTransactions();
         self::assertCount(3, $transactions);
 
         $expectedTransactions = [
-           [
-              'type' => 'CREDIT',
-              'typeDesc' => 'Generic credit',
-              'amount' => '200.00',
-              'uniqueId' => '980315001',
-              'name' => 'DEPOSIT',
-              'memo' => 'automatic deposit',
-              'sic' => '',
-              'checkNumber' => ''
-           ],
-           [
-               'type' => 'CREDIT',
-               'typeDesc' => 'Generic credit',
-               'amount' => '150.00',
-               'uniqueId' => '980310001',
-               'name' => 'TRANSFER',
-               'memo' => 'Transfer from checking',
-               'sic' => '',
-               'checkNumber' => ''
-           ],
-           [
-               'type' => 'CHECK',
-               'typeDesc' => 'Cheque',
-               'amount' => '-100.00',
-               'uniqueId' => '980309001',
-               'name' => 'Cheque',
-               'memo' => '',
-               'sic' => '',
-               'checkNumber' => '1025'
-           ],
-
+            [
+                'type' => 'CREDIT',
+                'typeDesc' => 'Generic credit',
+                'amount' => '200.00',
+                'uniqueId' => '980315001',
+                'name' => 'DEPOSIT',
+                'memo' => 'automatic deposit',
+                'sic' => '',
+                'checkNumber' => ''
+            ],
+            [
+                'type' => 'CREDIT',
+                'typeDesc' => 'Generic credit',
+                'amount' => '150.00',
+                'uniqueId' => '980310001',
+                'name' => 'TRANSFER',
+                'memo' => 'Transfer from checking',
+                'sic' => '',
+                'checkNumber' => ''
+            ],
+            [
+                'type' => 'CHECK',
+                'typeDesc' => 'Cheque',
+                'amount' => '-100.00',
+                'uniqueId' => '980309001',
+                'name' => 'Cheque',
+                'memo' => '',
+                'sic' => '',
+                'checkNumber' => '1025'
+            ],
         ];
 
         foreach ($transactions as $i => $transaction) {
@@ -118,5 +97,24 @@ class OfxTest extends TestCase
 
             self::assertInstanceOf('DateTime', $transaction->date);
         }
+    }
+
+    public function testICanCheckTheBankAccountDetails(): void
+    {
+        $bankAccount = $this->ofsContent->bankAccount;
+        self::assertEquals('23382938', $bankAccount->transactionUid);
+        self::assertEquals('098-121', $bankAccount->accountNumber);
+        self::assertEquals('987654321', $bankAccount->routingNumber);
+        self::assertEquals('SAVINGS', $bankAccount->accountType);
+        self::assertEquals('5250.00', $bankAccount->balance);
+        self::assertInstanceOf('DateTime', $bankAccount->balanceDate);
+    }
+
+    public function testICanCheckTheBankAccountStatementDetails(): void
+    {
+        $statement = $this->ofsContent->bankAccount->statement;
+        self::assertEquals('USD', $statement->currency);
+        self::assertInstanceOf('DateTime', $statement->startDate);
+        self::assertInstanceOf('DateTime', $statement->endDate);
     }
 }

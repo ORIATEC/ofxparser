@@ -1,24 +1,13 @@
 <?php
 
-namespace OfxParserTest;
+namespace OfxParser;
 
+use Exception;
 use PHPUnit\Framework\TestCase;
-use OfxParser\Utils;
 
-/**
- * Fake class for DateTime callback.
- */
-class MyDateTime extends \DateTime
-{
-
-}
-
-/**
- * @covers OfxParser\Utils
- */
 class UtilsTest extends TestCase
 {
-    public function amountConversionProvider()
+    public function amountConversionProvider(): array
     {
         return [
             '1000.00' => ['1000.00', 1000.0],
@@ -42,17 +31,18 @@ class UtilsTest extends TestCase
     }
 
     /**
-     * @param string $input
-     * @param float $output
      * @dataProvider amountConversionProvider
      */
-    public function testCreateAmountFromStr($input, $output)
+    public function testCreateAmountFromStr(string $input, float $output): void
     {
         $actual = Utils::createAmountFromStr($input);
         self::assertSame($output, $actual);
     }
 
-    public function testCreateDateTimeFromOFXDateFormats()
+    /**
+     * @throws Exception
+     */
+    public function testCreateDateTimeFromOFXDateFormats(): void
     {
         // October 5, 2008, at 1:22 and 124 milliseconds pm, Easter Standard Time
         $expectedDateTime = new \DateTime('2008-10-05 13:22:00');
@@ -78,12 +68,12 @@ class UtilsTest extends TestCase
         self::assertEquals(null, $DateTimeFive);
 
         // Test DateTime factory callback
-        Utils::$fnDateTimeFactory = function ($format) {
-            return new MyDateTime($format);
+        Utils::$fnDateTimeFactory = static function ($format) {
+            return new \DateTime($format);
         };
         $DateTimeSix = Utils::createDateTimeFromStr('20081005');
         self::assertEquals($expectedDateTime->format('Y-m-d'), $DateTimeSix->format('Y-m-d'));
-        self::assertEquals('OfxParserTest\\MyDateTime', get_class($DateTimeSix));
+        self::assertInstanceOf(\DateTime::class, $DateTimeSix);
         Utils::$fnDateTimeFactory = null;
     }
 }
